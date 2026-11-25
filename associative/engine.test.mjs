@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {buildIndex, rank, recombine} from './engine.mjs';
+const blocks=['Moltnook routes evidence ∆','QuantaPhi receives evidence','Oracle Octaves plays sound','Moltnook routes evidence ∆'];
+const wiring=[['Moltnook','QuantaPhi']];
+const model=()=>buildIndex(blocks,{projects:['Moltnook','QuantaPhi','Oracle Octaves'],wiring,symbols:{'∆':'triangulation'}});
+test('deduplicates blocks while preserving provenance and exact symbols',()=>{const m=model();assert.equal(m.nodes.length,3);assert.deepEqual(m.nodes[0].origins,[0,3]);assert.deepEqual(m.nodes[0].symbols,['∆']);});
+test('project weights route across explicit wiring without word overlap',()=>{const m=model();const r=rank(m,'Moltnook',{weights:{character:0,project:1,symbol:0}});assert.equal(r[0].node.projects[0],'Moltnook');assert.equal(r[1].node.projects[0],'QuantaPhi');assert.equal(r[2].score,0);});
+test('character-only ranking can match a partial word',()=>{assert.equal(rank(model(),'Quanta',{weights:{character:1,project:0,symbol:0}})[0].node.projects[0],'QuantaPhi');});
+test('symbols have an independent weight',()=>{assert.equal(rank(model(),'triangulation',{weights:{character:0,project:0,symbol:1}})[0].node.symbols[0],'∆');});
+test('seeded recombination is reproducible, crosses blocks and marks generated data',()=>{const opts={seed:42,steps:3,words:2};const a=recombine(model(),'evidence',opts);assert.deepEqual(a,recombine(model(),'evidence',opts));assert.equal(a.kind,'synthetic_association');assert.equal(new Set(a.fragments.map(f=>f.id)).size,3);for(const f of a.fragments)assert.ok(model().nodes.find(n=>n.id===f.id).text.includes(f.text));});
+test('rejects invalid weights and unbounded generation',()=>{assert.throws(()=>rank(model(),'x',{weights:{character:-1}}),/weight/);assert.throws(()=>recombine(model(),'x',{steps:1000}),/limit/);});
